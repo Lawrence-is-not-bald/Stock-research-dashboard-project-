@@ -125,6 +125,12 @@ The project includes `.env.example` as a safe template. The real `.env` file sho
 
 ## How to Run
 
+Online version:
+
+```text
+https://lawrence-is-not-bald.github.io/Stock-research-dashboard-project-/
+```
+
 Start a local web server from the project folder:
 
 ```bash
