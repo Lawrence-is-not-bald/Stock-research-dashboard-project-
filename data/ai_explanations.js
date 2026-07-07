@@ -1,0 +1,6 @@
+window.DASHBOARD_REFRESHED_AT = "2026-07-03T22:18:12.729463+00:00";
+window.AI_EXPLANATIONS = {
+  "AAPL": "AAPL's one-year daily close price rose, moving 45.3% from $212.44 to $308.63. The company currently shows revenue of $416.16B, net income of $112.01B, a market cap of $4.53T, and a P/E ratio of 37.32. A useful research question is whether the company's earnings growth and business quality justify that valuation. This is an educational explanation, not a buy or sell recommendation.",
+  "NVDA": "NVDA's one-year daily close price rose, moving 23.9% from $157.25 to $194.83. The company currently shows revenue of $215.94B, net income of $120.07B, a market cap of $4.72T, and a P/E ratio of 29.88. A useful research question is whether the company's earnings growth and business quality justify that valuation. This is an educational explanation, not a buy or sell recommendation.",
+  "COST": "COST's one-year daily close price stayed fairly close to where it started, moving -3.1% from $982.36 to $951.67. The company currently shows revenue of $275.24B, net income of $8.10B, a market cap of $422.05B, and a P/E ratio of 47.87. A useful research question is whether the company's earnings growth and business quality justify that valuation. This is an educational explanation, not a buy or sell recommendation."
+};

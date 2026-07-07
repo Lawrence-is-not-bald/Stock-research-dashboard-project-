@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stock Research Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow" data-i18n="Local JSON stock project">Local JSON stock project</p>
+        <h1 data-i18n="Stock Research Dashboard">Stock Research Dashboard</h1>
+        <p class="description" data-i18n="A beginner-friendly webpage that reads local EODHD price files for Apple, Nvidia, and Costco, then turns daily close prices into research cards, charts, metric boxes, and personal notes.">
+          A beginner-friendly webpage that reads local EODHD price files for Apple,
+          Nvidia, and Costco, then turns daily close prices into research cards,
+          charts, metric boxes, and personal notes.
+        </p>
+        <div class="language-picker">
+          <label for="languageSelect" data-i18n="Language">Language</label>
+          <select id="languageSelect">
+            <option value="en">English</option>
+            <option value="zh">中文</option>
+            <option value="la">Latina</option>
+            <option value="ar">العربية</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="hi">हिन्दी</option>
+          </select>
+        </div>
+        <div class="hero-actions">
+          <a href="#cardsTitle" data-i18n="Explore stocks">Explore stocks</a>
+          <a href="#dailyReview" data-i18n="End-of-day review">End-of-day review</a>
+          <button id="startIdeaCoach" type="button" data-i18n="Open idea coach">Open idea coach</button>
+          <button id="funModeSettings" type="button" data-i18n="Fun mode">Fun mode</button>
+          <button id="emojiModeToggle" type="button" data-i18n="Emoji hints">Emoji hints</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section aria-labelledby="cardsTitle">
+        <div class="section-heading">
+          <h2 id="cardsTitle" data-i18n="Company Cards">Company Cards</h2>
+          <p id="loadStatus" data-i18n="Loading local price data...">Loading local price data...</p>
+        </div>
+        <div class="card-grid" id="companyCards"></div>
+      </section>
+
+      <section aria-labelledby="sectionsTitle">
+        <div class="section-heading">
+          <h2 id="sectionsTitle" data-i18n="Company Research Sections">Company Research Sections</h2>
+          <p data-i18n="Each section uses the same local JSON file as its chart and table source.">Each section uses the same local JSON file as its chart and table source.</p>
+        </div>
+        <div class="company-sections" id="companySections"></div>
+      </section>
+
+      <section aria-labelledby="dailyTitle" id="dailyReview">
+        <div class="section-heading">
+          <h2 id="dailyTitle" data-i18n="End-of-Day Market Review">End-of-Day Market Review</h2>
+          <p data-i18n="Use the tabs to see the exact latest trading-day move for one stock.">Use the tabs to see the exact latest trading-day move for one stock.</p>
+        </div>
+        <div class="daily-tabs" id="dailyTabs"></div>
+        <div class="daily-panel" id="dailyPanel"></div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" id="ideaModal" aria-hidden="true">
+      <section class="idea-modal" role="dialog" aria-modal="true" aria-labelledby="ideaModalTitle">
+        <div class="modal-top">
+          <div>
+            <p class="eyebrow" data-i18n="Idea coach">Idea coach</p>
+            <h2 id="ideaModalTitle" data-i18n="Review my stock idea">Review my stock idea</h2>
+          </div>
+          <button class="icon-button" id="closeIdeaModal" type="button" aria-label="Close idea coach">×</button>
+        </div>
+
+        <div class="idea-grid">
+          <div>
+            <label for="ideaTicker" data-i18n="Stock">Stock</label>
+            <select id="ideaTicker">
+              <option value="AAPL">Apple (AAPL)</option>
+              <option value="NVDA">Nvidia (NVDA)</option>
+              <option value="COST">Costco (COST)</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="ideaAction" data-i18n="My idea">My idea</label>
+            <select id="ideaAction">
+              <option value="hold" data-i18n="I am thinking about holding">I am thinking about holding</option>
+              <option value="buy" data-i18n="I am thinking about buying">I am thinking about buying</option>
+              <option value="sell" data-i18n="I am thinking about selling">I am thinking about selling</option>
+            </select>
+          </div>
+        </div>
+
+        <label for="ideaText" data-i18n="Explain your thinking">Explain your thinking</label>
+        <textarea id="ideaText" data-i18n-placeholder="Example: I think Nvidia is dropping today, but I still like its long-term AI business. Should I wait?" placeholder="Example: I think Nvidia is dropping today, but I still like its long-term AI business. Should I wait?"></textarea>
+
+        <div class="modal-actions">
+          <button id="reviewIdeaButton" type="button" data-i18n="Review idea">Review idea</button>
+        </div>
+
+        <div class="coach-response" id="coachResponse">
+          <strong data-i18n="Ready when you are.">Ready when you are.</strong>
+          <p data-i18n="Write your idea, choose the stock, then press Review idea.">Write your idea, choose the stock, then press Review idea.</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="responseModal" aria-hidden="true">
+      <section class="idea-modal response-modal" role="dialog" aria-modal="true" aria-labelledby="responseModalTitle">
+        <div class="modal-top">
+          <div>
+            <p class="eyebrow" data-i18n="ChatGPT-style response">ChatGPT-style response</p>
+            <h2 id="responseModalTitle" data-i18n="Review in progress">Review in progress</h2>
+          </div>
+          <button class="icon-button" id="closeResponseModal" type="button" aria-label="Close response">×</button>
+        </div>
+        <div class="response-loading" id="responseLoading">
+          <span aria-hidden="true"></span>
+          <p data-i18n="Reviewing the stock data and your idea...">Reviewing the stock data and your idea...</p>
+        </div>
+        <div class="response-body" id="responseBody"></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="funModeModal" aria-hidden="true">
+      <section class="idea-modal fun-modal" role="dialog" aria-modal="true" aria-labelledby="funModeTitle">
+        <div class="modal-top">
+          <div>
+            <p class="eyebrow" data-i18n="Tiny dashboard personality">Tiny dashboard personality</p>
+            <h2 id="funModeTitle" data-i18n="Turn on stock puns?">Turn on stock puns?</h2>
+          </div>
+        </div>
+
+        <p class="fun-intro" data-i18n="Add a controlled amount of small popups, light jokes, and investing puns while you click around.">
+          Add a controlled amount of small popups, light jokes, and investing puns while you click around.
+        </p>
+
+        <div class="fun-sample">
+          <strong data-i18n="Sample:">Sample:</strong>
+          <span data-i18n="This chart is trying to make a good impression. Very bullish behavior.">This chart is trying to make a good impression. Very bullish behavior.</span>
+        </div>
+
+        <div class="modal-actions fun-actions">
+          <button id="disableFunMode" type="button" data-i18n="Keep it serious">Keep it serious</button>
+          <button id="enableFunMode" type="button" data-i18n="Add a little fun">Add a little fun</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="pun-toast-area" id="punToastArea" aria-live="polite"></div>
+
+    <script src="data/prices.js"></script>
+    <script src="data/fundamentals.js"></script>
+    <script src="data/ai_explanations.js"></script>
+    <script src="data/ai_actions.js"></script>
+    <script src="data/daily_analysis.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
