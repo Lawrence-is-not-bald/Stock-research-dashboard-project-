@@ -438,20 +438,23 @@ main {
 .ai-row {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 14px;
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
 }
 
 .ai-summary-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 14px;
 }
 
 .ai-quick-summary {
   min-height: 92px;
   margin: 0;
-  border: 1px solid #cfdced;
-  border-left: 4px solid var(--gold);
+  border: 2px solid #d8c27a;
+  border-left: 6px solid var(--gold);
   border-radius: 8px;
   background: #fffaf0;
   color: var(--ink);
@@ -468,8 +471,8 @@ main {
 .ai-action {
   min-height: 92px;
   margin: 0;
-  border: 1px solid #cfdced;
-  border-left: 4px solid var(--green);
+  border: 2px solid #bdd9cf;
+  border-left: 6px solid var(--green);
   border-radius: 8px;
   background: #f7fbf9;
   color: var(--ink);
