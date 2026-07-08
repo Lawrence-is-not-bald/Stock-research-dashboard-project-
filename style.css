@@ -217,7 +217,7 @@ main {
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: 16px;
 }
 
@@ -437,13 +437,13 @@ main {
 
 .ai-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(160px, 0.6fr);
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
 .ai-summary-grid {
   display: grid;
-  grid-template-columns: minmax(150px, 0.55fr) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -459,6 +459,8 @@ main {
   font-weight: 700;
   line-height: 1.5;
   padding: 12px;
+  overflow-wrap: normal;
+  word-break: normal;
   animation: updateGlow 900ms ease both;
 }
 
@@ -474,6 +476,8 @@ main {
   font-size: 17px;
   line-height: 1.5;
   padding: 12px;
+  overflow-wrap: normal;
+  word-break: normal;
   animation: updateGlow 900ms ease both;
 }
 
@@ -1303,6 +1307,10 @@ th {
 }
 
 @media (max-width: 620px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
   .section-heading,
   .card-top,
   .panel-top {
