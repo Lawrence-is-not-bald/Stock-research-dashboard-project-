@@ -65,6 +65,60 @@ let lastPunTime = 0;
 let responseTimer = null;
 const chartAnimationFrames = new WeakMap();
 
+function hasLocalEodhdToken() {
+  return window.EODHD_LOCAL_TOKEN_READY === true;
+}
+
+function showMissingTokenScreen() {
+  document.querySelector(".site-header").style.display = "none";
+  document.querySelector("main").style.display = "none";
+
+  document.body.insertAdjacentHTML(
+    "afterbegin",
+    `
+      <section class="token-gate" role="alert" aria-labelledby="tokenGateTitle">
+        <div class="token-gate-card">
+          <p class="eyebrow">Local EODHD token required</p>
+          <h1 id="tokenGateTitle">This dashboard needs your local EODHD API key first.</h1>
+          <p>
+            The website is blocked because it did not detect the local token status file.
+            This protects your API key by keeping the real <code>.env</code> file on your computer only.
+          </p>
+
+          <ol>
+            <li>Open Terminal in the project folder.</li>
+            <li>Create or edit your private <code>.env</code> file.</li>
+            <li>Run the refresh script so it can create the local token status file.</li>
+            <li>Restart or refresh the local server.</li>
+          </ol>
+
+          <pre><code>nano .env</code></pre>
+
+          <p>Put this inside the <code>.env</code> file:</p>
+
+          <pre><code>EODHD_API_KEY=your_real_eodhd_api_key_here</code></pre>
+
+          <p>Save in nano:</p>
+
+          <pre><code>Control + O
+Enter
+Control + X</code></pre>
+
+          <p>Then run:</p>
+
+          <pre><code>python3 scripts/download_aapl.py
+python3 -m http.server 8000</code></pre>
+
+          <p>
+            After that, open <code>http://127.0.0.1:8000/</code>.
+            Do not upload your real <code>.env</code> file to GitHub.
+          </p>
+        </div>
+      </section>
+    `,
+  );
+}
+
 const chartRanges = [
   { key: "1D", label: "1D", rows: 1 },
   { key: "5D", label: "5D", rows: 5 },
@@ -2065,4 +2119,9 @@ setupEmojiMode();
 setupIdeaCoach();
 setupResponseModal();
 setupFunMode();
-startDashboard();
+
+if (hasLocalEodhdToken()) {
+  startDashboard();
+} else {
+  showMissingTokenScreen();
+}

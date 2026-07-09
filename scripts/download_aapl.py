@@ -12,6 +12,9 @@ Before running this script:
 # json helps us save Python data as a .json file.
 import json
 
+# os helps us check whether local files exist before opening them.
+import os
+
 # re helps us find values inside simple HTML table rows.
 import re
 
@@ -53,12 +56,20 @@ EMBEDDED_AI_ACTIONS_FILE = "data/ai_actions.js"
 # This file lets the website read the latest end-of-day market analysis.
 EMBEDDED_DAILY_ANALYSIS_FILE = "data/daily_analysis.js"
 
+# This local-only file proves to the browser that a local EODHD token exists.
+# It must stay ignored by Git so the token itself is never published.
+LOCAL_TOKEN_STATUS_FILE = "data/local_token_status.js"
+
 # This keeps slow websites from freezing the whole refresh script.
 REQUEST_TIMEOUT_SECONDS = 20
 
 
 def load_api_key():
     """Read the EODHD_API_KEY value from the local .env file."""
+
+    # If .env does not exist yet, return None so main() can show instructions.
+    if not os.path.exists(ENV_FILE):
+        return None
 
     # Open the .env file in read mode.
     # The "with" statement automatically closes the file when we are done.
@@ -743,6 +754,11 @@ def main():
         print("Please add your real EODHD API key to the .env file first.")
         print("Example: EODHD_API_KEY=abc123_your_real_key")
         sys.exit(1)
+
+    # Create a local-only status file that unlocks the website.
+    # This does NOT write the actual API key into the browser.
+    with open(LOCAL_TOKEN_STATUS_FILE, "w", encoding="utf-8") as status_file:
+        status_file.write("window.EODHD_LOCAL_TOKEN_READY = true;\n")
 
     # Download each symbol one at a time.
     for symbol in SYMBOLS:

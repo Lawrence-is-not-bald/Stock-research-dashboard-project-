@@ -1,5 +1,6 @@
 .env
 *.key
+data/local_token_status.js
 .DS_Store
 __pycache__/
 *.pyc
