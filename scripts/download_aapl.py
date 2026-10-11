@@ -1,12 +1,7 @@
-"""
-Download historical daily stock price data from EODHD.
+"""Refresh dashboard data from public websites, or optionally EODHD.
 
-Before running this script:
-1. Open the .env file in the main project folder.
-2. Replace your_api_key_here with your real EODHD API key.
-3. Run this script from the main project folder:
-
-   python3 scripts/download_aapl.py
+Run python3 scripts/download_aapl.py --web to explicitly use no-key mode.
+Without --web, a configured EODHD_API_KEY is preferred when available.
 """
 
 # json helps us save Python data as a .json file.
@@ -20,6 +15,12 @@ import re
 
 # sys lets us stop the script early if something goes wrong.
 import sys
+import argparse
+import math
+from pathlib import Path
+from html import unescape
+
+from web_data import valid_api_key, normalize_prices, yahoo_url, parse_yahoo_prices
 
 # datetime lets us save when the dashboard data was refreshed.
 from datetime import datetime, timezone
@@ -56,50 +57,23 @@ EMBEDDED_AI_ACTIONS_FILE = "data/ai_actions.js"
 # This file lets the website read the latest end-of-day market analysis.
 EMBEDDED_DAILY_ANALYSIS_FILE = "data/daily_analysis.js"
 
-# This local-only file proves to the browser that a local EODHD token exists.
-# It must stay ignored by Git so the token itself is never published.
-LOCAL_TOKEN_STATUS_FILE = "data/local_token_status.js"
+# Public provenance only. Credentials must never be written into browser assets.
+METADATA_FILE = "data/source_metadata.js"
 
 # This keeps slow websites from freezing the whole refresh script.
 REQUEST_TIMEOUT_SECONDS = 20
 
 
 def load_api_key():
-    """Read the EODHD_API_KEY value from the local .env file."""
-
-    # If .env does not exist yet, return None so main() can show instructions.
-    if not os.path.exists(ENV_FILE):
-        return None
-
-    # Open the .env file in read mode.
-    # The "with" statement automatically closes the file when we are done.
-    with open(ENV_FILE, "r", encoding="utf-8") as env_file:
-        # Read the file one line at a time.
-        for line in env_file:
-            # Remove spaces and newlines from the start and end of the line.
-            line = line.strip()
-
-            # Skip blank lines.
-            if not line:
-                continue
-
-            # Skip comment lines that start with #.
-            if line.startswith("#"):
-                continue
-
-            # Look for the line that starts with EODHD_API_KEY=.
-            if line.startswith("EODHD_API_KEY="):
-                # Split the line into two parts:
-                # "EODHD_API_KEY" and the actual key value.
-                _, api_key = line.split("=", 1)
-
-                # Remove any extra spaces around the key.
-                api_key = api_key.strip()
-
-                # Return the key to the rest of the script.
-                return api_key
-
-    # If we get here, the script did not find EODHD_API_KEY in .env.
+    """Read an optional key without treating template values as credentials."""
+    key = valid_api_key(os.environ.get("EODHD_API_KEY"))
+    if key:
+        return key
+    if os.path.exists(ENV_FILE):
+        with open(ENV_FILE, encoding="utf-8") as env_file:
+            for line in env_file:
+                if line.strip().startswith("EODHD_API_KEY="):
+                    return valid_api_key(line.strip().split("=", 1)[1])
     return None
 
 
@@ -150,18 +124,8 @@ def build_stockanalysis_url(symbol):
 
 
 def download_json(url):
-    """Download JSON data from the API and turn it into Python data."""
-
-    # Open the URL and wait for the server response.
-    with urlopen(url, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-        # Read the raw response bytes from the server.
-        response_body = response.read()
-
-    # Decode bytes into normal text.
-    response_text = response_body.decode("utf-8")
-
-    # Convert the JSON text into Python lists/dictionaries.
-    return json.loads(response_text)
+    """Use the same bounded web request for JSON and HTML sources."""
+    return json.loads(download_text(url))
 
 
 def load_cached_json(path):
@@ -217,7 +181,7 @@ def save_json(data, output_file):
     # Open the output file in write mode.
     with open(output_file, "w", encoding="utf-8") as output_file:
         # json.dump writes Python data as nicely formatted JSON.
-        json.dump(data, output_file, indent=2)
+        json.dump(data, output_file, indent=2, allow_nan=False)
 
 
 def get_ticker(symbol):
@@ -281,6 +245,10 @@ def summarize_fundamentals(fundamentals):
 
     # EODHD puts market cap and P/E in the Highlights section.
     highlights = fundamentals.get("Highlights", {})
+    market_cap = parse_number(highlights.get("MarketCapitalization"))
+    if market_cap is None:
+        millions = parse_number(highlights.get("MarketCapitalizationMln"))
+        market_cap = millions * 1_000_000 if millions is not None else None
 
     # Build a small dictionary for the website.
     return {
@@ -290,52 +258,40 @@ def summarize_fundamentals(fundamentals):
         "netIncome": parse_number(
             str(get_latest_yearly_statement_value(fundamentals, "netIncome"))
         ),
-        "marketCap": parse_number(
-            str(
-                highlights.get("MarketCapitalization")
-                or highlights.get("MarketCapitalizationMln")
-            )
-        ),
+        "marketCap": market_cap,
         "peRatio": parse_number(str(highlights.get("PERatio"))),
     }
 
 
 def parse_number(text):
-    """Turn text like '4,362,291,605,560' or '36.005' into a number."""
-
-    # If there is no value, return nothing.
+    """Parse full numeric values and public-table abbreviations like 4.2T."""
     if text is None:
         return None
-
-    # Remove commas, dollar signs, and spaces.
-    cleaned = text.replace(",", "").replace("$", "").strip()
-
-    # Try to read the value as a decimal number.
+    cleaned = unescape(str(text)).replace(",", "").replace("$", "").strip()
+    match = re.fullmatch(r"(-?[\d.]+)\s*([TBMK])?", cleaned, re.IGNORECASE)
+    if not match:
+        return None
     try:
-        return float(cleaned)
+        value = float(match.group(1)) * {None: 1, "T": 1e12, "B": 1e9,
+                                       "M": 1e6, "K": 1e3}[match.group(2).upper() if match.group(2) else None]
+        return value if math.isfinite(value) else None
     except ValueError:
         return None
 
 
 def extract_metric_from_html(html, label):
-    """Find a metric value in a StockAnalysis statistics table."""
-
-    # This pattern finds a table row with the exact label, then reads the
-    # numeric value from the next table cell's title attribute.
-    label_pattern = (
-        rf"(?:>{re.escape(label)}</a>|<span><!---->{re.escape(label)}<!----></span>)"
-    )
-    pattern = rf"<tr[^>]*>.*?{label_pattern}.*?<td[^>]*title=\"([^\"]+)\""
-
-    # Search across line breaks too.
-    match = re.search(pattern, html, re.DOTALL)
-
-    # Return no value if the label was not found.
-    if not match:
-        return None
-
-    # Convert the captured text into a number.
-    return parse_number(match.group(1))
+    """Scope each label/value pair to its own row, never a neighboring table."""
+    for row in re.findall(r"<tr\b[^>]*>(.*?)</tr>", html, re.DOTALL | re.IGNORECASE):
+        cells = re.findall(r"<td\b([^>]*)>(.*?)</td>", row, re.DOTALL | re.IGNORECASE)
+        if len(cells) < 2:
+            continue
+        cell_label = unescape(re.sub(r"<[^>]+>", "", cells[0][1])).strip()
+        if cell_label not in {label, f"{label} (ttm)", f"{label} (TTM)"}:
+            continue
+        title = re.search(r'title=["\']([^"\']+)', cells[1][0])
+        value = title.group(1) if title else re.sub(r"<[^>]+>", "", cells[1][1])
+        return parse_number(value)
+    return None
 
 
 def summarize_stockanalysis_fundamentals(html):
@@ -350,70 +306,78 @@ def summarize_stockanalysis_fundamentals(html):
     }
 
 
-def get_fundamentals_summary(symbol, api_key):
-    """Try EODHD fundamentals first, then use StockAnalysis as a fallback."""
-
-    # First try EODHD, because the rest of this project already uses EODHD.
-    try:
-        fundamentals_url = build_fundamentals_url(symbol, api_key)
-        fundamentals = download_json(fundamentals_url)
-        summary = summarize_fundamentals(fundamentals)
-
-        # If EODHD returned useful values, use them.
-        if any(value is not None for value in summary.values()):
-            return summary
-
-    except Exception as error:
-        print(f"EODHD fundamentals unavailable for {symbol}: {error}")
-
-    # If EODHD is blocked by the current plan, use a no-key webpage fallback.
-    stockanalysis_url = build_stockanalysis_url(symbol)
-    html = download_text(stockanalysis_url)
-    return summarize_stockanalysis_fundamentals(html)
+def utc_now():
+    return datetime.now(timezone.utc).isoformat()
 
 
-def rebuild_embedded_fundamentals_file(api_key):
-    """Download fundamentals and create data/fundamentals.js."""
+def source_record(source, url, **extra):
+    return {"source": source, "url": url, "fetchedAt": utc_now(),
+            "status": "updated", **extra}
 
-    # This dictionary will hold the small fundamentals summary for each ticker.
+
+def get_prices(symbol, api_key=None):
+    ticker = get_ticker(symbol)
+    if api_key:
+        try:
+            rows = normalize_prices(download_json(build_url(symbol, api_key)))
+            return rows, source_record("EODHD", "https://eodhd.com/", latestDate=rows[-1]["date"])
+        except Exception:
+            # Do not print exception URLs: EODHD URLs contain the secret token.
+            print(f"EODHD prices unavailable for {ticker}; trying public web data.")
+    rows = parse_yahoo_prices(download_json(yahoo_url(ticker)))
+    return rows, source_record("Yahoo Finance", f"https://finance.yahoo.com/quote/{ticker}/history/",
+                               latestDate=rows[-1]["date"])
+
+
+def get_fundamentals_summary(symbol, api_key=None):
+    if api_key:
+        try:
+            summary = summarize_fundamentals(download_json(build_fundamentals_url(symbol, api_key)))
+            if any(value is not None for value in summary.values()):
+                return summary, source_record("EODHD", "https://eodhd.com/", period="Latest annual income statement")
+        except Exception:
+            print(f"EODHD fundamentals unavailable for {symbol}; trying public web data.")
+    url = build_stockanalysis_url(symbol)
+    summary = summarize_stockanalysis_fundamentals(download_text(url))
+    if not any(value is not None for value in summary.values()):
+        raise ValueError("No usable financial metrics were found on the public page.")
+    return summary, source_record("StockAnalysis", url, period="Trailing twelve months")
+
+
+def cached_record(previous, available, **extra):
+    # Preserve the successful fetch date; a failed attempt is not a data update.
+    return {**previous, "source": previous.get("source", "Saved data (source unrecorded)"),
+            "status": "cached" if available else "unavailable", **extra}
+
+
+def rebuild_embedded_fundamentals_file(api_key=None, metadata=None, previous=None):
+    metadata = metadata if metadata is not None else {}
+    previous = previous or {}
     all_fundamentals = {}
-
-    # Keep old fundamentals available in case the internet is down.
     try:
-        cached_fundamentals = load_embedded_javascript_object(
-            EMBEDDED_FUNDAMENTALS_FILE,
-            "FUNDAMENTALS_DATA",
-        )
-    except Exception:
-        cached_fundamentals = {}
-
-    # Download fundamentals for each symbol.
+        cached = load_embedded_javascript_object(EMBEDDED_FUNDAMENTALS_FILE, "FUNDAMENTALS_DATA")
+    except (OSError, ValueError):
+        cached = {}
     for symbol in SYMBOLS:
         ticker = get_ticker(symbol)
-        print(f"Downloading fundamentals for {symbol}...")
         try:
-            all_fundamentals[ticker] = get_fundamentals_summary(symbol, api_key)
-        except Exception as error:
-            print(f"Could not download fundamentals for {symbol}; using cached values.")
-            print(f"Error: {error}")
-            all_fundamentals[ticker] = cached_fundamentals.get(
-                ticker,
-                {
-                    "revenue": None,
-                    "netIncome": None,
-                    "marketCap": None,
-                    "peRatio": None,
-                },
-            )
+            summary, source = get_fundamentals_summary(symbol, api_key)
+            if any(value is None for value in summary.values()):
+                source["status"] = "partial"
+        except Exception:
+            print(f"Fundamentals unavailable for {ticker}; keeping saved metrics where available.")
+            summary = cached.get(ticker, {"revenue": None, "netIncome": None, "marketCap": None, "peRatio": None})
+            source = cached_record(previous.get(ticker, {}).get("fundamentals", {}),
+                                   any(value is not None for value in summary.values()))
+        all_fundamentals[ticker] = summary
+        metadata.setdefault(ticker, {})["fundamentals"] = source
+    write_javascript(EMBEDDED_FUNDAMENTALS_FILE, "FUNDAMENTALS_DATA", all_fundamentals)
 
-    # Turn the Python dictionary into JavaScript code.
-    javascript_text = "window.FUNDAMENTALS_DATA = "
-    javascript_text += json.dumps(all_fundamentals, indent=2)
-    javascript_text += ";\n"
 
-    # Save the JavaScript file used by index.html.
-    with open(EMBEDDED_FUNDAMENTALS_FILE, "w", encoding="utf-8") as embedded_file:
-        embedded_file.write(javascript_text)
+def write_javascript(path, name, value):
+    temporary = Path(path + ".tmp")
+    temporary.write_text(f"window.{name} = " + json.dumps(value, indent=2, allow_nan=False) + ";\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def format_large_money(value):
@@ -743,72 +707,56 @@ def rebuild_daily_analysis_file():
         embedded_file.write(javascript_text)
 
 
+def refresh_data(api_key=None):
+    """Refresh prices, metrics, summaries, and public source metadata."""
+    api_key = valid_api_key(api_key)
+    os.makedirs("data", exist_ok=True)
+    try:
+        previous = load_embedded_javascript_object(METADATA_FILE, "DATA_SOURCE_METADATA").get("tickers", {})
+    except (OSError, ValueError):
+        previous = {}
+    metadata = {"mode": "eodhd" if api_key else "web", "attemptedAt": utc_now(), "tickers": {}}
+    all_prices = {}
+    for symbol in SYMBOLS:
+        ticker = get_ticker(symbol)
+        print(f"Refreshing daily prices for {ticker}...")
+        try:
+            rows, source = get_prices(symbol, api_key)
+        except Exception:
+            print(f"Online prices unavailable for {ticker}; keeping saved prices.")
+            try:
+                rows = normalize_prices(load_cached_json(get_output_file(symbol)))
+            except (OSError, ValueError) as error:
+                raise ValueError(f"No usable prices for {ticker}. Check your internet connection and retry.") from error
+            source = cached_record(previous.get(ticker, {}).get("prices", {}), True, latestDate=rows[-1]["date"])
+        all_prices[ticker] = rows
+        metadata["tickers"][ticker] = {"prices": source}
+    # Validate every ticker before replacing any saved price history.
+    for ticker, rows in all_prices.items():
+        save_json(rows, f"data/{ticker}.json")
+    rebuild_embedded_price_file()
+    rebuild_embedded_fundamentals_file(api_key, metadata["tickers"], previous)
+    rebuild_ai_explanations_file()
+    rebuild_ai_actions_file()
+    rebuild_daily_analysis_file()
+    write_javascript(METADATA_FILE, "DATA_SOURCE_METADATA", metadata)
+    print("Dashboard updated. Source details show any cached or unavailable data.")
+    return metadata
+
+
 def main():
-    """Run the full download process."""
-
-    # Load the API key from .env.
-    api_key = load_api_key()
-
-    # Make sure the API key exists and is not still the placeholder value.
-    if not api_key or api_key == "your_api_key_here":
-        print("Please add your real EODHD API key to the .env file first.")
-        print("Example: EODHD_API_KEY=abc123_your_real_key")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--web", action="store_true", help="Use public websites without an EODHD key, even if .env is configured.")
+    args = parser.parse_args()
+    os.chdir(Path(__file__).resolve().parent.parent)
+    key = None if args.web else load_api_key()
+    print("EODHD mode with web fallback." if key else "Web mode — no API key required. EODHD is highly recommended and optional.")
+    try:
+        refresh_data(key)
+    except Exception as error:
+        print(str(error) if isinstance(error, ValueError) else "Refresh failed. Saved data remains available.")
         sys.exit(1)
 
-    # Create a local-only status file that unlocks the website.
-    # This does NOT write the actual API key into the browser.
-    with open(LOCAL_TOKEN_STATUS_FILE, "w", encoding="utf-8") as status_file:
-        status_file.write("window.EODHD_LOCAL_TOKEN_READY = true;\n")
 
-    # Download each symbol one at a time.
-    for symbol in SYMBOLS:
-        # Build the API URL for this symbol.
-        url = build_url(symbol, api_key)
-
-        # Decide where this symbol's JSON file should be saved.
-        output_file = get_output_file(symbol)
-
-        # Let the user know what is happening.
-        print(f"Downloading historical daily prices for {symbol}...")
-
-        try:
-            # Download and parse the JSON data.
-            data = download_json(url)
-
-            # Save the JSON data to the matching file in data/.
-            save_json(data, output_file)
-
-        except Exception as error:
-            # If anything goes wrong, keep the last saved data instead.
-            print(f"Could not download {symbol}; using cached {output_file}.")
-            print(f"Error: {error}")
-            data = load_cached_json(output_file)
-
-        # Let the user know this symbol finished successfully.
-        print(f"Saved data to {output_file}")
-
-    # Rebuild data/prices.js so the website charts use the latest data.
-    rebuild_embedded_price_file()
-    print(f"Updated chart data in {EMBEDDED_PRICE_FILE}")
-
-    # Rebuild data/fundamentals.js so the website metrics use the latest data.
-    rebuild_embedded_fundamentals_file(api_key)
-    print(f"Updated fundamentals data in {EMBEDDED_FUNDAMENTALS_FILE}")
-
-    # Rebuild AI explanation text from the latest prices and fundamentals.
-    rebuild_ai_explanations_file()
-    print(f"Updated AI explanations in {EMBEDDED_AI_EXPLANATIONS_FILE}")
-
-    # Rebuild the educational buy/sell check from the latest available data.
-    rebuild_ai_actions_file()
-    print(f"Updated AI buy/sell checks in {EMBEDDED_AI_ACTIONS_FILE}")
-
-    # Rebuild the end-of-day analysis from the latest two daily price rows.
-    rebuild_daily_analysis_file()
-    print(f"Updated end-of-day analysis in {EMBEDDED_DAILY_ANALYSIS_FILE}")
-
-
-# This means "run main() only when this file is executed directly."
-# It prevents main() from running if another script imports this file later.
 if __name__ == "__main__":
     main()

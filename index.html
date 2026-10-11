@@ -9,12 +9,11 @@
   <body>
     <header class="site-header">
       <div>
-        <p class="eyebrow" data-i18n="Local JSON stock project">Local JSON stock project</p>
+        <p class="eyebrow" data-i18n="Stock research, with or without an API key">Stock research, with or without an API key</p>
         <h1 data-i18n="Stock Research Dashboard">Stock Research Dashboard</h1>
-        <p class="description" data-i18n="A beginner-friendly webpage that reads local EODHD price files for Apple, Nvidia, and Costco, then turns daily close prices into research cards, charts, metric boxes, and personal notes.">
-          A beginner-friendly webpage that reads local EODHD price files for Apple,
-          Nvidia, and Costco, then turns daily close prices into research cards,
-          charts, metric boxes, and personal notes.
+        <p class="description">
+          Research Apple, Nvidia, and Costco with price charts, company metrics,
+          and personal notes. Start with public web data, or connect EODHD for API access.
         </p>
         <div class="language-picker">
           <label for="languageSelect" data-i18n="Language">Language</label>
@@ -40,6 +39,48 @@
     </header>
 
     <main>
+      <section class="data-source-panel" aria-labelledby="dataSourceTitle">
+        <div class="data-source-heading">
+          <div>
+            <p class="eyebrow" id="dataModeBadge">No API key required</p>
+            <h2 id="dataSourceTitle">Highly recommended: an EODHD API key</h2>
+          </div>
+          <button id="refreshData" class="data-button" type="button" disabled>Refresh from the web</button>
+        </div>
+        <p class="data-source-intro">Connect EODHD for structured market data, subject to your plan.
+          Without a key, web mode collects daily prices from Yahoo Finance and available company
+          metrics from StockAnalysis. Sources may be delayed or unavailable.</p>
+        <div class="data-source-actions">
+          <details id="eodhdConnection">
+            <summary>Connect EODHD (optional)</summary>
+            <form id="eodhdForm">
+              <label for="eodhdKey">EODHD API key</label>
+              <div class="key-input-row">
+                <input id="eodhdKey" type="password" autocomplete="off" spellcheck="false" maxlength="256"
+                  placeholder="Paste your EODHD API key" aria-describedby="keyPrivacy" required disabled>
+                <button id="connectEodhd" class="data-button" type="submit" disabled>Connect EODHD</button>
+              </div>
+              <p id="keyPrivacy" class="data-help">Your key is verified with EODHD and kept only in the local
+                server’s memory until it stops. <a href="https://eodhd.com/" target="_blank" rel="noopener noreferrer">Get an EODHD API key</a>.</p>
+              <button id="continueWeb" class="data-button secondary" type="button">Continue without a key</button>
+            </form>
+          </details>
+          <button id="disconnectEodhd" class="data-button secondary" type="button" hidden>Disconnect and use web mode</button>
+        </div>
+        <p id="dataSourceStatus" class="data-status" role="status" aria-live="polite">Saved data is available immediately. Checking for the data service…</p>
+        <div id="localServiceHelp" class="data-help" hidden>
+          <p>This copy shows saved data. To fetch websites or connect EODHD, run the local data service:</p>
+          <pre><code>python3 scripts/serve.py</code></pre>
+          <p>Then open <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>.
+            To update a static copy, run <code>python3 scripts/download_aapl.py --web</code> and reload it.</p>
+        </div>
+        <details class="source-details">
+          <summary>Sources &amp; freshness</summary>
+          <p class="data-help">Each source keeps its own fetch date. Cached values are saved data;
+            they are not a successful update. Metrics from different sources may use different reporting periods.</p>
+          <div id="sourceDetails"></div>
+        </details>
+      </section>
       <section aria-labelledby="cardsTitle">
         <div class="section-heading">
           <h2 id="cardsTitle" data-i18n="Company Cards">Company Cards</h2>
@@ -159,7 +200,8 @@
     <script src="data/ai_explanations.js"></script>
     <script src="data/ai_actions.js"></script>
     <script src="data/daily_analysis.js"></script>
-    <script src="data/local_token_status.js"></script>
+    <script src="data/source_metadata.js"></script>
+    <script src="data-source.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

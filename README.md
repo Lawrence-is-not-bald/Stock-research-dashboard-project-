@@ -52,17 +52,30 @@ The goal is to make stock research easier to understand by showing prices, chart
 - JavaScript
 - Python
 - Local JSON data files
-- EODHD API for stock market data
+- Public web data, with optional EODHD API access
 - Browser `localStorage` for saving notes locally
 - Canvas charts drawn with JavaScript
 
-## Data Source
+## Data Sources and Optional EODHD Connection
 
-The stock data comes from EODHD.
+**No API key is required.** The dashboard opens immediately with its saved data.
+It highly recommends an EODHD API key and offers an optional **Connect EODHD** form.
+This verifies a provider key; it does not create a dashboard user account.
 
-The Python script downloads historical price data and financial data, then saves the results into the `data/` folder. The website reads those saved local files.
-
-The public website does not need an API key to load if the data files are already saved.
+- **Web mode:** downloads daily USD price history from Yahoo Finance’s public chart
+  endpoint and tries to extract company metrics from StockAnalysis’s public statistics pages.
+- **EODHD mode:** prefers EODHD prices and fundamentals, with web fallback when a
+  request fails or the account plan lacks access. A connection does not guarantee
+  access to every dataset.
+- Every ticker shows its source, latest trading date, fetch date, and whether data
+  is fetched, partial, cached, or unavailable. Unknown provenance in old snapshots
+  is labeled explicitly. Failed refreshes preserve saved prices and metrics;
+  missing metrics are never invented. Revenue and net income may be annual (EODHD)
+  or trailing twelve months (StockAnalysis), as indicated in source details.
+- Public sources can change, reject automated requests, or impose limits. Data
+  can be delayed. A current trading session is excluded until after market close.
+- The existing educational summaries are generated locally from these datasets;
+  this feature does not add a live language model or unrestricted web browsing.
 
 ## Project Structure
 
@@ -71,6 +84,7 @@ stock-research-dashboard/
   index.html
   style.css
   app.js
+  data-source.js
   README.md
   .env.example
   .gitignore
@@ -83,8 +97,11 @@ stock-research-dashboard/
     ai_explanations.js
     ai_actions.js
     daily_analysis.js
+    source_metadata.js
   scripts/
     download_aapl.py
+    web_data.py
+    serve.py
 ```
 
 ## Installation
@@ -97,59 +114,59 @@ cd /Users/lawrenceli/Documents/Codex/2026-06-17/stock-research-dashboard-scripts
 
 No extra JavaScript packages are required for the website.
 
-Python is used only when refreshing the stock data.
+Use Python 3.9 or newer for the local data service and refresh script. No additional Python packages are required.
 
-## API Key Setup
+## How to Run — No Key Needed
 
-Create a private `.env` file in the project folder:
-
-```bash
-nano .env
-```
-
-Add your own EODHD token:
-
-```env
-EODHD_API_KEY=your_real_eodhd_api_key_here
-```
-
-Save in nano:
-
-1. Press `Control + O`
-2. Press `Enter`
-3. Press `Control + X`
-
-Do not upload `.env` to GitHub or any public website.
-
-The project includes `.env.example` as a safe template. The real `.env` file should stay private.
-
-## How to Run
-
-Online version:
-
-```text
-https://lawrence-is-not-bald.github.io/Stock-research-dashboard-project-/
-```
-
-Start a local web server from the project folder:
+Start the local data service from the project folder:
 
 ```bash
-python3 -m http.server 8000
+python3 scripts/serve.py
 ```
 
-Then open this in your browser:
+Open [the local dashboard](http://127.0.0.1:8000/). Use `--port 8001` if port 8000
+is occupied. The dashboard loads saved data immediately and automatically checks
+web sources when the latest refresh attempt is more than four hours old. Click
+**Refresh from the web** to check again. The service binds only to your computer.
 
-```text
-http://127.0.0.1:8000/
+To update files without running the service:
+
+```bash
+python3 scripts/download_aapl.py --web
 ```
 
-To refresh the stock data, run:
+`--web` explicitly skips EODHD even if `.env` or the environment contains a key.
+
+## Optional EODHD Setup
+
+With the local service running, expand **Connect EODHD (optional)**, paste your
+key, and connect. The server validates it against EODHD’s User API before enabling
+EODHD mode and refreshing data. The key stays in server memory until disconnect
+or server shutdown. It is never saved in browser storage, public data files, or
+logs. **Disconnect and use web mode** clears the key and refreshes public data.
+The server starts in web mode; an existing `.env` key is only used by the CLI.
+
+For command-line refreshes, optionally create a private `.env` in the project
+folder using `.env.example`, then run:
 
 ```bash
 python3 scripts/download_aapl.py
 ```
 
-That updates the saved data files used by the dashboard.
+Without a usable key this command also uses web mode. Never upload `.env` or API
+keys. The local service serves only allowlisted dashboard assets, so it does not
+expose `.env`, Git files, or unrelated documents.
+
+## Static / GitHub Pages Copies
+
+[Open the published dashboard](https://lawrence-is-not-bald.github.io/Stock-research-dashboard-project-/).
+
+A static copy (including opening `index.html` directly) displays the saved snapshot
+without a key. Live website collection and key verification require the Python
+service; GitHub Pages cannot run that backend. The interface explains how to start
+it and disables connection/refresh actions until it is available. To update a
+hosted static copy, run the refresh script and publish the generated `data/` files.
+Do not use `python3 -m http.server` for key connection or live refresh.
 
 ## How to Use the Dashboard
 
@@ -178,7 +195,7 @@ screenshots/end-of-day-review.png
 
 - The ChatGPT-style summaries are generated locally from saved dashboard data.
 - The website does not call the live ChatGPT API.
-- Stock data updates only when the Python refresh script is run.
+- Fresh web data requires the local service or Python refresh script. Static copies show saved data.
 - The dashboard depends on the saved local data files in `data/`.
 - Financial data may be delayed depending on the API source.
 - This project currently focuses on only three companies.
@@ -207,7 +224,6 @@ Through this project, I learned how to:
 
 - Add more companies
 - Add real daily news for each company
-- Add a backend for secure live API calls
 - Add real ChatGPT API summaries using a private server-side key
 - Add screenshots to the README
 - Add portfolio comparison tools
@@ -215,3 +231,14 @@ Through this project, I learned how to:
 - Add more financial metrics such as EPS, free cash flow, and debt
 - Improve mobile layout
 - Add user-selected stock tickers
+
+## Verification
+
+Run the parser, fallback, refresh, connection, and local-server security tests:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The tests use isolated temporary snapshots and mocked provider responses, so they
+do not need a key or alter saved project data.
