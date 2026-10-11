@@ -1,5 +1,7 @@
 # Stock Research Dashboard
 
+**Live website:** [Open the Stock Research Dashboard](https://lawrence-is-not-bald.github.io/Stock-research-dashboard-project-/)
+
 ## Project Overview
 
 This is a beginner-friendly stock research dashboard for comparing Apple (`AAPL`), Nvidia (`NVDA`), and Costco Wholesale (`COST`).
